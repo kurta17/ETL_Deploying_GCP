@@ -1,0 +1,18 @@
+steps:
+# Deploy the load function
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    gcloud functions deploy load_to_bigquery \
+      --runtime python310 \
+      --trigger-http \
+      --allow-unauthenticated \
+      --region us-central1 \
+      --source=. \
+      --entry-point=load_to_bigquery \
+      --memory=1024MB \
+      --timeout=540s
+
+timeout: 1200s

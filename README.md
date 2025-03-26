@@ -91,3 +91,59 @@ gcloud scheduler jobs create http etl-daily-job \
 - **price**: Book price in GBP (float)
 - **rating**: Book rating (string)
 - **scraped_date**: Date the data was scraped (date)
+
+# ETL Pipeline on Google Cloud Platform
+
+This project implements an ETL pipeline on Google Cloud Platform using Cloud Functions and Cloud Build for deployment.
+
+## Deployment with Cloud Build (One-by-One)
+
+To deploy the ETL pipeline components individually with Cloud Build:
+
+1. Make sure you have the Google Cloud SDK installed and configured
+2. Enable necessary APIs:
+   ```
+   gcloud services enable cloudbuild.googleapis.com
+   gcloud services enable cloudfunctions.googleapis.com
+   gcloud services enable storage.googleapis.com
+   ```
+
+3. Deploy the extract function independently:
+   ```
+   cd extract_function
+   gcloud builds submit --config=cloudbuild.yaml
+   ```
+
+4. Deploy the load function independently:
+   ```
+   cd load_function
+   gcloud builds submit --config=cloudbuild.yaml
+   ```
+
+This approach allows you to deploy and update each part of the ETL pipeline separately.
+
+## Permissions
+
+Ensure the Cloud Build service account has the following permissions:
+- Cloud Functions Developer
+- Service Account User
+- Storage Admin (for the target buckets)
+
+You can grant these permissions using:
+```
+PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+CLOUDBUILD_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$CLOUDBUILD_SA" \
+  --role="roles/cloudfunctions.developer"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$CLOUDBUILD_SA" \
+  --role="roles/iam.serviceAccountUser"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$CLOUDBUILD_SA" \
+  --role="roles/storage.admin"
+```

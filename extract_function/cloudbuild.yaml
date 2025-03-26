@@ -1,0 +1,19 @@
+steps:
+# Deploy the extract function
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    gcloud functions deploy extract_to_gcs \
+      --runtime python310 \
+      --trigger-http \
+      --allow-unauthenticated \
+      --region us-central1 \
+      --source=. \
+      --entry-point=extract_to_gcs \
+      --memory=512MB \
+      --timeout=540s
+
+# You can add additional testing steps here if needed
+timeout: 1200s

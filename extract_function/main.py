@@ -8,8 +8,6 @@ import json
 import functions_framework
 from google.cloud import storage
 
-# Set Google Cloud credentials
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credintal.json"
 
 def scrape_books(page_num=1, max_pages=5):
     """Scrape book data from multiple pages"""
@@ -57,6 +55,7 @@ def save_to_gcs(data, bucket_name, blob_name):
     writer.writerows(data)
     
     # Upload to GCS
+    # No need for explicit credentials, Cloud Build will use service account
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
@@ -67,32 +66,39 @@ def save_to_gcs(data, bucket_name, blob_name):
 @functions_framework.http
 def extract_to_gcs(request):
     """Cloud Function 1: Extract data and save to GCS"""
-    # Parse request parameters (if any)
-    request_json = request.get_json(silent=True)
-    max_pages = 5  # Default value
-    
-    if request_json and 'max_pages' in request_json:
-        max_pages = int(request_json['max_pages'])
-    
-    # Extract
-    print("Starting data extraction...")
-    book_data = scrape_books(max_pages=max_pages)
-    print(f"Extracted {len(book_data)} book records")
-    
-    # Save to GCS
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    bucket_name = "zambara"
-    blob_name = f"zambara/giorgi/books_{timestamp}.csv"
-    
-    gcs_uri = save_to_gcs(book_data, bucket_name, blob_name)
-    print(f"Data saved to Cloud Storage: {gcs_uri}")
-    
-    # Return success response with GCS URI
-    return json.dumps({
-        'status': 'success',
-        'message': f"Extracted {len(book_data)} books and saved to GCS",
-        'gcs_uri': gcs_uri
-    })
+    try:
+        # Parse request parameters (if any)
+        request_json = request.get_json(silent=True)
+        max_pages = 5  # Default value
+        
+        if request_json and 'max_pages' in request_json:
+            max_pages = int(request_json['max_pages'])
+        
+        # Extract
+        print("Starting data extraction...")
+        book_data = scrape_books(max_pages=max_pages)
+        print(f"Extracted {len(book_data)} book records")
+        
+        # Save to GCS
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        bucket_name = "zambara"
+        blob_name = f"zambara/giorgi/books_{timestamp}.csv"
+        
+        gcs_uri = save_to_gcs(book_data, bucket_name, blob_name)
+        print(f"Data saved to Cloud Storage: {gcs_uri}")
+        
+        # Return success response with GCS URI
+        return json.dumps({
+            'status': 'success',
+            'message': f"Extracted {len(book_data)} books and saved to GCS",
+            'gcs_uri': gcs_uri
+        })
+    except Exception as e:
+        print(f"Error in extract_to_gcs: {str(e)}")
+        return json.dumps({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 # For local testing
 if __name__ == "__main__":

@@ -5,7 +5,6 @@ WORKDIR /app
 # Copy function code and dependencies
 COPY main.py .
 COPY requirements.txt .
-COPY credintal.json .
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
