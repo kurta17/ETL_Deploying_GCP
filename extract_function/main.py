@@ -81,8 +81,8 @@ def extract_to_gcs(request):
         
         # Save to GCS
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        bucket_name = "zambara"
-        blob_name = f"zambara/giorgi/books_{timestamp}.csv"
+        bucket_name = "giorgi"
+        blob_name = f"books_{timestamp}.csv"
         
         gcs_uri = save_to_gcs(book_data, bucket_name, blob_name)
         print(f"Data saved to Cloud Storage: {gcs_uri}")

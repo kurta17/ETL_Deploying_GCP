@@ -94,5 +94,5 @@ def gcs_to_bigquery(request):
 # For local testing
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get("PORT", 8080))  # Default to port 8080
+    port = int(os.environ.get("PORT", 8081))  # Default to port 8080
     functions_framework.run(port=port)
