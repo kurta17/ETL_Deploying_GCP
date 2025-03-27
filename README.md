@@ -92,58 +92,123 @@ gcloud scheduler jobs create http etl-daily-job \
 - **rating**: Book rating (string)
 - **scraped_date**: Date the data was scraped (date)
 
-# ETL Pipeline on Google Cloud Platform
+# Pub/Sub Integration Workshop
 
-This project implements an ETL pipeline on Google Cloud Platform using Cloud Functions and Cloud Build for deployment.
+This project demonstrates how to create a sentiment analysis pipeline using Google Cloud Pub/Sub, Cloud Run, Natural Language API, and Slack integration.
 
-## Deployment with Cloud Build (One-by-One)
+## Architecture
 
-To deploy the ETL pipeline components individually with Cloud Build:
+1. **HTTP Endpoint**: Receives feedback messages and publishes them to a Pub/Sub topic.
+2. **Sentiment Analyzer**: Triggered by Pub/Sub, analyzes sentiment using the Natural Language API, and sends alerts to Slack for positive/negative feedback.
 
-1. Make sure you have the Google Cloud SDK installed and configured
-2. Enable necessary APIs:
-   ```
-   gcloud services enable cloudbuild.googleapis.com
-   gcloud services enable cloudfunctions.googleapis.com
-   gcloud services enable storage.googleapis.com
-   ```
+## Project Structure
 
-3. Deploy the extract function independently:
-   ```
-   cd extract_function
-   gcloud builds submit --config=cloudbuild.yaml
-   ```
-
-4. Deploy the load function independently:
-   ```
-   cd load_function
-   gcloud builds submit --config=cloudbuild.yaml
-   ```
-
-This approach allows you to deploy and update each part of the ETL pipeline separately.
-
-## Permissions
-
-Ensure the Cloud Build service account has the following permissions:
-- Cloud Functions Developer
-- Service Account User
-- Storage Admin (for the target buckets)
-
-You can grant these permissions using:
 ```
-PROJECT_ID=$(gcloud config get-value project)
-PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
-CLOUDBUILD_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+.
+├── infrastructure/
+│   └── setup.sh               # Sets up Pub/Sub and Secret Manager
+├── functions/
+│   ├── feedback-receiver/     # First Cloud Run service (HTTP endpoint)
+│   │   ├── app.py
+│   │   ├── requirements.txt
+│   │   └── Dockerfile
+│   └── sentiment-analyzer/    # Second Cloud Run service (Pub/Sub triggered)
+│       ├── app.py
+│       ├── requirements.txt
+│       └── Dockerfile
+├── deployment/
+│   └── deploy.sh              # Deployment script
+├── test/
+│   └── test_requests.py       # Test script for sending sample feedback
+└── README.md
+```
 
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$CLOUDBUILD_SA" \
-  --role="roles/cloudfunctions.developer"
+## Setup Instructions
 
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$CLOUDBUILD_SA" \
-  --role="roles/iam.serviceAccountUser"
+### 1. Create the Infrastructure
 
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$CLOUDBUILD_SA" \
-  --role="roles/storage.admin"
+```bash
+cd infrastructure
+chmod +x setup.sh
+./setup.sh
+```
+
+This script creates:
+- A Pub/Sub topic named `feedback-topic`
+- Two subscriptions: `positive-sub` and `negative-sub`
+- A Secret Manager secret for your Slack token
+
+### 2. Deploy the Cloud Run Services
+
+```bash
+cd deployment
+chmod +x deploy.sh
+./deploy.sh
+```
+
+This deploys both Cloud Run services and sets up the Pub/Sub trigger.
+
+### 3. Testing
+
+Update the `FEEDBACK_RECEIVER_URL` in `test/test_requests.py` with your actual Cloud Run URL.
+
+```bash
+cd test
+python test_requests.py
+```
+
+Or use Postman to send requests to your feedback receiver endpoint:
+
+- **Positive Feedback Example:**
+```json
+{
+  "user_id": "user@example.com",
+  "message": "I absolutely love this product!"
+}
+```
+
+- **Neutral Feedback Example:**
+```json
+{
+  "user_id": "user@example.com",
+  "message": "The product works fine."
+}
+```
+
+- **Negative Feedback Example:**
+```json
+{
+  "user_id": "user@example.com",
+  "message": "I'm disappointed with the service."
+}
+```
+
+## Slack Integration
+
+The system will send alerts to your configured Slack channel when positive or negative feedback is received.
+
+- **Positive feedback**: Green message with a smile emoji
+- **Negative feedback**: Red message with a disappointed emoji
+
+## Required Google Cloud APIs
+
+- Cloud Run API
+- Cloud Build API
+- Pub/Sub API
+- Secret Manager API
+- Natural Language API
+
+## Cleanup
+
+To delete all resources created for this project:
+
+1. Delete the Cloud Run services
+2. Delete the Pub/Sub topic and subscriptions
+3. Delete the Secret Manager secret
+
+```
+gcloud run services delete feedback-receiver --region us-central1
+gcloud run services delete sentiment-analyzer --region us-central1
+gcloud pubsub topics delete feedback-topic
+gcloud secrets delete SLACK_TOKEN
 ```
