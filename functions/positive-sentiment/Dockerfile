@@ -7,7 +7,9 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir google-cloud-secretmanager==2.12.0 && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY main.py .
