@@ -16,7 +16,7 @@ language_client = language_v1.LanguageServiceClient()
 
 # Get project ID
 project_id = os.environ.get('PROJECT_ID', os.environ.get('GOOGLE_CLOUD_PROJECT'))
-slack_channel = os.environ.get('SLACK_CHANNEL', '#feedback-alerts')
+slack_channel = os.environ.get('SLACK_CHANNEL', '#support')  # Channel for negative feedback
 
 def get_slack_token():
     """Retrieve Slack token from Secret Manager."""
@@ -42,44 +42,40 @@ def analyze_sentiment(text):
         return "neutral", sentiment.score
 
 def send_slack_alert(message, sentiment, score, user_id):
-    """Sends an alert to Slack for non-neutral sentiment."""
+    """Sends an alert to Slack for negative sentiment."""
     token = get_slack_token()
     
-    # Format message based on sentiment
-    if sentiment == "positive":
-        emoji = ":smile:"
-        color = "#36a64f"  # Green
-    elif sentiment == "negative":
+    # Only process negative sentiment
+    if sentiment == "negative":
         emoji = ":disappointed:"
         color = "#ff0000"  # Red
-    else:
-        return  # Don't send for neutral sentiment
-    
-    # Prepare Slack message payload
-    payload = {
-        "channel": slack_channel,
-        "attachments": [
-            {
-                "color": color,
-                "pretext": f"New {sentiment} feedback received! {emoji}",
-                "author_name": f"User: {user_id}",
-                "title": f"Sentiment Score: {score:.2f}",
-                "text": message
-            }
-        ]
-    }
-    
-    # Send to Slack
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    response = requests.post(
-        "https://slack.com/api/chat.postMessage",
-        headers=headers,
-        json=payload
-    )
-    return response.json()
+        
+        # Prepare Slack message payload
+        payload = {
+            "channel": slack_channel,
+            "attachments": [
+                {
+                    "color": color,
+                    "pretext": f"Negative feedback needs attention! {emoji}",
+                    "author_name": f"User: {user_id}",
+                    "title": f"Sentiment Score: {score:.2f}",
+                    "text": message
+                }
+            ]
+        }
+        
+        # Send to Slack
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        response = requests.post(
+            "https://slack.com/api/chat.postMessage",
+            headers=headers,
+            json=payload
+        )
+        return response.json()
+    return None
 
 @app.route('/', methods=['POST'])
 def process_pubsub_message():
@@ -106,15 +102,15 @@ def process_pubsub_message():
         # Log the analysis result
         print(f"Feedback analyzed - User: {feedback['user_id']}, Sentiment: {sentiment}, Score: {score}")
         
-        # Send Slack alert for non-neutral sentiment
-        if sentiment != "neutral":
+        # Send Slack alert only for negative sentiment
+        if sentiment == "negative":
             send_slack_alert(
                 message=feedback['message'],
                 sentiment=sentiment,
                 score=score,
                 user_id=feedback['user_id']
             )
-            print(f"Alert sent to Slack for {sentiment} feedback")
+            print(f"Alert sent to Slack #support for negative feedback")
         
         return 'Message processed successfully', 200
     

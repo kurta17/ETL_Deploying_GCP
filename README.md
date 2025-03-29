@@ -92,123 +92,98 @@ gcloud scheduler jobs create http etl-daily-job \
 - **rating**: Book rating (string)
 - **scraped_date**: Date the data was scraped (date)
 
-# Pub/Sub Integration Workshop
+# Feedback Sentiment Analysis System on GCP
 
-This project demonstrates how to create a sentiment analysis pipeline using Google Cloud Pub/Sub, Cloud Run, Natural Language API, and Slack integration.
+This project implements a feedback sentiment analysis system on Google Cloud Platform that:
+1. Receives user feedback via HTTP endpoint
+2. Analyzes sentiment using Google Natural Language API
+3. Routes feedback to appropriate Slack channels based on sentiment
 
 ## Architecture
 
-1. **HTTP Endpoint**: Receives feedback messages and publishes them to a Pub/Sub topic.
-2. **Sentiment Analyzer**: Triggered by Pub/Sub, analyzes sentiment using the Natural Language API, and sends alerts to Slack for positive/negative feedback.
+- **HTTP Receiver Function**: Accepts HTTP requests with feedback and publishes to Pub/Sub
+- **Positive Sentiment Function**: Processes positive feedback and sends alerts to #followup Slack channel
+- **Negative Sentiment Function**: Processes negative feedback and sends alerts to #support Slack channel
+- **Pub/Sub Topic**: Routes messages between functions
+- **Optional BigQuery Integration**: Stores all feedback messages for analysis
 
-## Project Structure
+## Prerequisites
 
-```
-.
-├── infrastructure/
-│   └── setup.sh               # Sets up Pub/Sub and Secret Manager
-├── functions/
-│   ├── feedback-receiver/     # First Cloud Run service (HTTP endpoint)
-│   │   ├── app.py
-│   │   ├── requirements.txt
-│   │   └── Dockerfile
-│   └── sentiment-analyzer/    # Second Cloud Run service (Pub/Sub triggered)
-│       ├── app.py
-│       ├── requirements.txt
-│       └── Dockerfile
-├── deployment/
-│   └── deploy.sh              # Deployment script
-├── test/
-│   └── test_requests.py       # Test script for sending sample feedback
-└── README.md
-```
+- Google Cloud account with billing enabled
+- Google Cloud SDK installed
+- Terraform (optional, for infrastructure as code)
+- Slack workspace with a bot integration and token
 
-## Setup Instructions
+## Deployment
 
-### 1. Create the Infrastructure
+### 1. Set up Slack Token in Secret Manager
 
 ```bash
-cd infrastructure
-chmod +x setup.sh
-./setup.sh
+# Create a secret for the Slack token
+echo -n "xoxb-your-slack-token" | gcloud secrets create SLACK_TOKEN --data-file=-
+
+# Grant access to the service account
+gcloud secrets add-iam-policy-binding SLACK_TOKEN \
+    --member="serviceAccount:sentiment-analyzer-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
 ```
 
-This script creates:
-- A Pub/Sub topic named `feedback-topic`
-- Two subscriptions: `positive-sub` and `negative-sub`
-- A Secret Manager secret for your Slack token
-
-### 2. Deploy the Cloud Run Services
+### 2. Deploy using script
 
 ```bash
-cd deployment
+# Make the script executable
 chmod +x deploy.sh
+
+# Run the deployment script
 ./deploy.sh
 ```
 
-This deploys both Cloud Run services and sets up the Pub/Sub trigger.
-
-### 3. Testing
-
-Update the `FEEDBACK_RECEIVER_URL` in `test/test_requests.py` with your actual Cloud Run URL.
+### 3. Using Terraform (Alternative)
 
 ```bash
-cd test
-python test_requests.py
+cd terraform
+terraform init
+terraform apply -var="project_id=YOUR_PROJECT_ID" \
+                -var="positive_function_url=POSITIVE_FUNCTION_URL" \
+                -var="negative_function_url=NEGATIVE_FUNCTION_URL" \
+                -var="pubsub_service_account=SERVICE_ACCOUNT_EMAIL" \
+                -var="create_bigquery=true"
 ```
 
-Or use Postman to send requests to your feedback receiver endpoint:
+## Testing with Postman
 
-- **Positive Feedback Example:**
+Send POST requests to the HTTP Receiver function URL with different sentiment messages:
+
+### 1. Positive Sentiment
+
 ```json
 {
-  "user_id": "user@example.com",
-  "message": "I absolutely love this product!"
+  "user_id": "happy.user@example.com",
+  "message": "I absolutely love this service! It has been incredibly helpful and the customer support is amazing."
 }
 ```
 
-- **Neutral Feedback Example:**
+### 2. Negative Sentiment
+
 ```json
 {
-  "user_id": "user@example.com",
-  "message": "The product works fine."
+  "user_id": "unhappy.user@example.com",
+  "message": "This is terrible. I've been trying for hours and nothing works. Very disappointed with the service."
 }
 ```
 
-- **Negative Feedback Example:**
+### 3. Neutral Sentiment
+
 ```json
 {
-  "user_id": "user@example.com",
-  "message": "I'm disappointed with the service."
+  "user_id": "neutral.user@example.com",
+  "message": "I submitted the form as requested. Please process my application when you have time."
 }
 ```
 
-## Slack Integration
+## Flow Monitoring
 
-The system will send alerts to your configured Slack channel when positive or negative feedback is received.
-
-- **Positive feedback**: Green message with a smile emoji
-- **Negative feedback**: Red message with a disappointed emoji
-
-## Required Google Cloud APIs
-
-- Cloud Run API
-- Cloud Build API
-- Pub/Sub API
-- Secret Manager API
-- Natural Language API
-
-## Cleanup
-
-To delete all resources created for this project:
-
-1. Delete the Cloud Run services
-2. Delete the Pub/Sub topic and subscriptions
-3. Delete the Secret Manager secret
-
-```
-gcloud run services delete feedback-receiver --region us-central1
-gcloud run services delete sentiment-analyzer --region us-central1
-gcloud pubsub topics delete feedback-topic
-gcloud secrets delete SLACK_TOKEN
-```
+1. Check Cloud Run Function logs for execution details
+2. Verify Pub/Sub message delivery in the Cloud Console
+3. Confirm Slack message delivery to the appropriate channels (#followup or #support)
+4. If BigQuery is enabled, query the table to see all recorded feedback
