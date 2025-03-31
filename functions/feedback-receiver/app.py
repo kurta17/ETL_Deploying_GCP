@@ -13,8 +13,8 @@ app = Flask(__name__)
 # Initialize Pub/Sub publisher client
 try:
     publisher = pubsub_v1.PublisherClient()
-    project_id = os.environ.get('PROJECT_ID', os.environ.get('GOOGLE_CLOUD_PROJECT'))
-    
+    # project_id = os.environ.get('PROJECT_ID', os.environ.get('GOOGLE_CLOUD_PROJECT'))
+    project_id = "vital-cathode-454012-k0"
     if not project_id:
         logger.error("PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable not set")
         raise ValueError("PROJECT_ID environment variable is required")
