@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+from venv import logger
 import requests
 from flask import Flask, request
 from google.cloud import language_v1
@@ -88,6 +89,9 @@ def process_pubsub_message():
     
     # Decode the message data
     pubsub_message = envelope['message']
+    logger.info(f"Received Pub/Sub message: {pubsub_message}")
+    
+    
     if not pubsub_message.get('data'):
         return 'No data in message', 400
     
