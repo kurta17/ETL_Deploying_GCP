@@ -1,11 +1,15 @@
 import base64
 import json
 import os
-from venv import logger
+import logging
 import requests
 from flask import Flask, request
 from google.cloud import language_v1
 from google.cloud import secretmanager
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -85,14 +89,15 @@ def process_pubsub_message():
     
     # Extract Pub/Sub message
     if not envelope or 'message' not in envelope:
+        logger.error("No Pub/Sub message received")
         return 'No Pub/Sub message received', 400
     
     # Decode the message data
     pubsub_message = envelope['message']
     logger.info(f"Received Pub/Sub message: {pubsub_message}")
     
-    
     if not pubsub_message.get('data'):
+        logger.error("No data in message")
         return 'No data in message', 400
     
     try:
@@ -100,26 +105,41 @@ def process_pubsub_message():
         message_data = base64.b64decode(pubsub_message['data']).decode('utf-8')
         feedback = json.loads(message_data)
         
+        # Validate required fields
+        if 'message' not in feedback or 'user_id' not in feedback:
+            logger.error("Missing required fields in message")
+            return 'Missing required fields in feedback', 400
+        
         # Analyze sentiment
         sentiment, score = analyze_sentiment(feedback['message'])
         
         # Log the analysis result
-        print(f"Feedback analyzed - User: {feedback['user_id']}, Sentiment: {sentiment}, Score: {score}")
+        logger.info(f"Feedback analyzed - User: {feedback['user_id']}, Sentiment: {sentiment}, Score: {score}")
         
         # Send Slack alert only for positive sentiment
         if sentiment == "positive":
-            send_slack_alert(
-                message=feedback['message'],
-                sentiment=sentiment,
-                score=score,
-                user_id=feedback['user_id']
-            )
-            print(f"Alert sent to Slack #followup for positive feedback")
+            try:
+                slack_response = send_slack_alert(
+                    message=feedback['message'],
+                    sentiment=sentiment,
+                    score=score,
+                    user_id=feedback['user_id']
+                )
+                if slack_response and not slack_response.get('ok'):
+                    logger.warning(f"Slack API error: {slack_response.get('error')}")
+                else:
+                    logger.info(f"Alert sent to Slack {slack_channel} for positive feedback")
+            except Exception as slack_err:
+                logger.error(f"Error sending Slack alert: {slack_err}")
+                # Continue execution even if Slack alert fails
         
         return 'Message processed successfully', 200
     
+    except json.JSONDecodeError as json_err:
+        logger.error(f"Invalid JSON in message: {json_err}")
+        return f'Error: Invalid JSON format: {str(json_err)}', 400
     except Exception as e:
-        print(f"Error processing message: {e}")
+        logger.error(f"Error processing message: {e}")
         return f'Error: {str(e)}', 500
 
 if __name__ == "__main__":
